@@ -5,7 +5,9 @@ const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require('mongoose');
 // const encryption = require('mongoose-encryption');
-const md5 = require('md5');
+// const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const app = express();
 
@@ -31,12 +33,19 @@ app.route("/register")
     res.render("register");
   })
   .post((req, res) => {
-    req.body.password = md5(req.body.password);
-    User.create(req.body, err => {
+    // req.body.password = md5(req.body.password);
+    bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
       if (!err) {
-        res.render("secrets");
-      } else {
-        res.send(err);
+        req.body.password = hash;
+        User.create(req.body, err => {
+          if (!err) {
+            res.render("secrets");
+          } else {
+            res.send(err);
+          }
+        });
+      }else{
+        res.send("Error in creating the hash!")
       }
     });
   });
@@ -47,8 +56,9 @@ app.route("/login")
   })
   .post((req, res) => {
     // User.findOne({username: req.body.username}, (err, user) => {
-    req.body.password = md5(req.body.password);
-    User.findOne(req.body, (err, user) => {
+    // req.body.password = md5(req.body.password);
+
+    User.findOne({username: req.body.username}, (err, user) => {
       if (!err) {
         if (user) {
           // if (req.body.password === user.password) {
@@ -56,7 +66,13 @@ app.route("/login")
           // } else {
           //   res.send("Invalid Password!")
           // }
-          res.render("secrets");
+          bcrypt.compare(req.body.password, user.password, (err, result) => {
+            if (result) {
+              res.render("secrets");
+            } else {
+              res.send("Incorrect Password!")
+            }
+          });
         } else {
           res.send("Invalid Credentials!")
         }
