@@ -40,11 +40,17 @@ const userSchema = new mongoose.Schema({
   facebookId: String
 });
 
+const secretSchema = new mongoose.Schema({
+  userId: String,
+  secret: String
+});
+
 // userSchema.plugin(encryption, { secret: process.env.SECRET, encryptedFields: ["password"] });
 userSchema.plugin(passportLocalMongoose);
 userSchema.plugin(findOrCreate);
 
 const User = mongoose.model("User", userSchema);
+const Secret = mongoose.model("Secret", secretSchema);
 
 passport.use(User.createStrategy());
 
@@ -109,14 +115,49 @@ app.get("/auth/facebook/callback",
     res.redirect("/secrets");
 });
 
-
 app.get("/secrets", (req, res) => {
+  Secret.find((err, secrets) => {
+      if (!err) {
+        res.render("secrets", {secrets: secrets});
+      } else {
+        console.log(err);
+      }
+  });
+});
+
+app.route("/submit")
+  .get((req, res) => {
   if (req.isAuthenticated()) {
-    res.render("secrets");
+    res.render("submit");
   } else {
     res.redirect("/login");
   }
 })
+.post((req, res) => {
+  User.findOne({_id: req.user.id}, (err, theUser) => {
+    if (!err) {
+      if (theUser) {
+        let theSecret = new Secret({
+          userId: theUser._id,
+          secret: req.body.secret
+        });
+        Secret.create(theSecret, (err) => {
+          if (!err) {
+            res.redirect("/secrets");
+          } else {
+            console.log(err);
+          }
+        });
+      } else {
+        console.log("User not found: id="+req.user.id);
+      }
+    } else {
+      console.log(err);
+    }
+    // res.redirect("/submit");
+  });
+});
+
 
 app.route("/register")
   .get((req, res) => {
@@ -196,10 +237,6 @@ app.route("/login")
 
 app.get("/", (req, res) => {
   res.render("home");
-});
-
-app.get("/login", (req, res) => {
-  res.render("login");
 });
 
 app.get("/logout", (req, res) => {
